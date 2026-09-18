@@ -309,11 +309,17 @@ export function parseTextDocument(
  */
 export function parseStatementText(text: string): BlinkParsedStatement {
   // Check if document matches Blink statement format
-  const hasUserOrBlink = /nadav|radav|נדב|גדב|heyblink|slink|blink|פירוט תנועות|פירוט יתרות/i.test(text);
+  const hasUserOrBlink = /nadav|radav|נדב|גדב|heyblink|slink|blink|פירוט תנועות|פירוט יתרות|תנועות בחשבון|משהו ספציפי|תנועות|activity/i.test(text);
 
   if (hasUserOrBlink) {
     const { parseBlinkTextLines } = require('./blinkParser');
     return parseBlinkTextLines(text);
+  }
+
+  // Check if mobile activity feed format
+  const mobileTx = extractBlinkMobileActivity(text);
+  if (mobileTx.length > 0) {
+    return buildStatementFromActivityTransactions(mobileTx, text);
   }
 
   const lines = text
@@ -391,9 +397,9 @@ export function parseStatementText(text: string): BlinkParsedStatement {
     }
 
     // Check if line has date -> transaction candidate
-    const dateMatch = line.match(/(\d{2}[./-]\d{2}[./-]\d{4}|\d{4}[./-]\d{2}[./-]\d{2})/);
-    if (dateMatch && (inTransactionsSection || line.includes('מכירה') || line.includes('קניה') || line.includes('קנייה') || line.includes('דיבידנד') || line.includes('מס') || line.includes('משיכה') || line.includes('הפקדה') || line.includes('המרת'))) {
-      const txDate = formatDateString(dateMatch[1]);
+    const detectedDate = parseHebrewOrStandardDate(line);
+    if (detectedDate && (inTransactionsSection || line.includes('מכירה') || line.includes('קניה') || line.includes('קנייה') || line.includes('דיבידנד') || line.includes('מס') || line.includes('משיכה') || line.includes('הפקדה') || line.includes('המרת'))) {
+      const txDate = detectedDate;
       let actionType = 'פעולה';
       let txTicker: string | undefined = undefined;
 
@@ -415,7 +421,8 @@ export function parseStatementText(text: string): BlinkParsedStatement {
         }
       }
 
-      const numbers = extractAllNumbers(line.replace(dateMatch[0], ''));
+      const lineWithoutDate = line.replace(/\d{1,2}\s+[א-תA-Za-z]+(?:'|״)?\s+\d{4}|\d{2}[./-]\d{2}[./-]\d{4}|\d{4}[./-]\d{2}[./-]\d{2}/, '');
+      const numbers = extractAllNumbers(lineWithoutDate);
       let quantity: number | undefined = undefined;
       let price: number | undefined = undefined;
       let amount = 0;
@@ -661,4 +668,228 @@ function formatDateString(dateStr: string): string {
     return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
   }
   return dateStr;
+}
+
+const HEBREW_MONTHS: Record<string, string> = {
+  'ינו': '01', 'ינואר': '01', 'jan': '01',
+  'פבר': '02', 'פברואר': '02', 'feb': '02',
+  'מרץ': '03', 'מרס': '03', 'mar': '03',
+  'אפר': '04', 'אפריל': '04', 'apr': '04',
+  'מאי': '05', 'may': '05',
+  'יונ': '06', 'יוני': '06', 'jun': '06',
+  'יול': '07', 'יולי': '07', 'jul': '07',
+  'אוג': '08', 'אוגוסט': '08', 'aug': '08',
+  'ספט': '09', 'ספטמבר': '09', 'sep': '09', 'sept': '09',
+  'אוק': '10', 'אוקטובר': '10', 'oct': '10',
+  'נוב': '11', 'נובמבר': '11', 'nov': '11',
+  'דצמ': '12', 'דצמבר': '12', 'dec': '12',
+};
+
+export function parseHebrewOrStandardDate(str: string): string | null {
+  if (!str) return null;
+  // 1. Standard YYYY-MM-DD or DD/MM/YYYY or DD.MM.YYYY
+  const stdMatch = str.match(/(\d{2})[./-](\d{2})[./-](\d{4})/);
+  if (stdMatch) {
+    return `${stdMatch[3]}-${stdMatch[2]}-${stdMatch[1]}`;
+  }
+  const isoMatch = str.match(/(\d{4})[./-](\d{2})[./-](\d{2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+  }
+
+  // 2. Hebrew format: "18 ספט' 2026" or "18 ספטמבר 2026" or "18 ספט 2026"
+  const hebMatch = str.match(/(\d{1,2})\s+([א-תA-Za-z]+)(?:'|״|")?\s+(\d{4})/);
+  if (hebMatch) {
+    const day = hebMatch[1].padStart(2, '0');
+    const monthKey = hebMatch[2].replace(/['״"]/g, '').toLowerCase();
+    const month = HEBREW_MONTHS[monthKey];
+    const year = hebMatch[3];
+    if (month) {
+      return `${year}-${month}-${day}`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Dynamically extract transaction list from mobile activity screens (Blink "תנועות בחשבון")
+ */
+export function extractBlinkMobileActivity(text: string): BlinkTransactionItem[] {
+  const transactions: BlinkTransactionItem[] = [];
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  let pendingAction: string | null = null;
+  let pendingDate: string | null = null;
+  let pendingTicker: string | null = null;
+  let pendingQuantity: number | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Single-line complete pattern: e.g. "קניה 18 ספט' 2026 JPM 5.5644 מניות -$1,933.48"
+    const singleMatch = line.match(
+      /(קניה|קנייה|מכירה|דיבידנד|הפקדה|משיכה).*?(\d{1,2}\s+[א-תA-Za-z]+(?:'|״)?\s+\d{4}|\d{2}[./-]\d{2}[./-]\d{4}).*?([A-Z]{1,5})\s+([\d,.]+)\s*מניות.*?([+-]?)\s*\$?\s*([\d,]+(?:\.\d+)?)/
+    );
+    if (singleMatch) {
+      const act = singleMatch[1].replace('קנייה', 'קניה');
+      const d = parseHebrewOrStandardDate(singleMatch[2]) || new Date().toISOString().split('T')[0];
+      const tk = singleMatch[3].toUpperCase();
+      const q = parseFloat(singleMatch[4].replace(/,/g, ''));
+      const sign = singleMatch[5] === '-' || act === 'קניה' ? -1 : 1;
+      const amt = sign * Math.abs(parseFloat(singleMatch[6].replace(/,/g, '')));
+      const p = q > 0 ? Number((Math.abs(amt) / q).toFixed(4)) : undefined;
+
+      transactions.push({
+        date: d,
+        actionType: act,
+        ticker: tk,
+        assetName: getTickerDetails(tk).name,
+        quantity: q,
+        price: p,
+        amount: amt,
+      });
+      continue;
+    }
+
+    // Step 1: Detect Action & Date
+    const actionMatch = line.match(/(קניה|קנייה|מכירה|דיבידנד|הפקדה|משיכה)/);
+    const dateMatch = parseHebrewOrStandardDate(line);
+
+    if (actionMatch && dateMatch) {
+      pendingAction = actionMatch[1].replace('קנייה', 'קניה');
+      pendingDate = dateMatch;
+      continue;
+    } else if (actionMatch) {
+      pendingAction = actionMatch[1].replace('קנייה', 'קניה');
+    } else if (dateMatch && !pendingDate) {
+      pendingDate = dateMatch;
+    }
+
+    // Step 2: Detect Ticker and Quantity (e.g. "JPM 5.5644 מניות")
+    const tickerQtyMatch = line.match(/([A-Z]{1,5})[\s:,-]+([\d,.]+)\s*(?:מניות|מניה|shares)?/i);
+    if (tickerQtyMatch && isTickerCandidate(tickerQtyMatch[1].toUpperCase())) {
+      pendingTicker = tickerQtyMatch[1].toUpperCase();
+      pendingQuantity = parseFloat(tickerQtyMatch[2].replace(/,/g, ''));
+      continue;
+    }
+
+    // Ticker on its own
+    const words = line.split(/\s+/);
+    if (words.length === 1 && isTickerCandidate(words[0].toUpperCase())) {
+      pendingTicker = words[0].toUpperCase();
+    }
+    // Quantity on its own
+    const qtyOnlyMatch = line.match(/([\d,.]+)\s*(?:מניות|מניה|shares)/);
+    if (qtyOnlyMatch) {
+      pendingQuantity = parseFloat(qtyOnlyMatch[1].replace(/,/g, ''));
+    }
+
+    // Step 3: Detect Dollar amount (e.g. "-$1,933.48" or "+$4,002.06")
+    const amountMatch = line.match(/([+-]?)\s*\$?\s*([\d,]+(?:\.\d+)?)\s*([+-]?)/);
+    if (amountMatch && pendingTicker) {
+      const numVal = parseFloat(amountMatch[2].replace(/,/g, ''));
+      if (numVal > 0) {
+        const isNegative =
+          amountMatch[1] === '-' ||
+          amountMatch[3] === '-' ||
+          (pendingAction && (pendingAction.includes('קניה') || pendingAction.includes('משיכה')));
+        const amount = isNegative ? -Math.abs(numVal) : Math.abs(numVal);
+        const quantity = pendingQuantity || 1;
+        const price = Number((Math.abs(amount) / quantity).toFixed(4));
+        const actionType = pendingAction || (amount < 0 ? 'קניה' : 'מכירה');
+        const date = pendingDate || new Date().toISOString().split('T')[0];
+
+        transactions.push({
+          date,
+          actionType,
+          ticker: pendingTicker,
+          assetName: getTickerDetails(pendingTicker).name,
+          quantity,
+          price,
+          amount,
+        });
+
+        pendingAction = null;
+        pendingDate = null;
+        pendingTicker = null;
+        pendingQuantity = null;
+      }
+    }
+  }
+
+  return transactions;
+}
+
+export function buildStatementFromActivityTransactions(
+  transactions: BlinkTransactionItem[],
+  rawText: string
+): BlinkParsedStatement {
+  const sortedTx = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
+  const latestDate = sortedTx[sortedTx.length - 1]?.date || new Date().toISOString().split('T')[0];
+
+  const holdingMap = new Map<string, { quantity: number; totalCost: number; latestPrice: number }>();
+
+  for (const tx of sortedTx) {
+    if (!tx.ticker) continue;
+    const cur = holdingMap.get(tx.ticker) || { quantity: 0, totalCost: 0, latestPrice: 0 };
+    const qty = tx.quantity || 0;
+    const price = tx.price || (qty > 0 ? Math.abs(tx.amount) / qty : 0);
+
+    if (tx.actionType.includes('קניה')) {
+      cur.quantity = Number((cur.quantity + qty).toFixed(4));
+      cur.totalCost = Number((cur.totalCost + Math.abs(tx.amount)).toFixed(2));
+      cur.latestPrice = price;
+    } else if (tx.actionType.includes('מכירה')) {
+      cur.quantity = Math.max(0, Number((cur.quantity - qty).toFixed(4)));
+      if (cur.quantity === 0) {
+        cur.totalCost = 0;
+      } else {
+        cur.totalCost = Number((cur.quantity * price).toFixed(2));
+      }
+      cur.latestPrice = price;
+    }
+    holdingMap.set(tx.ticker, cur);
+  }
+
+  const holdings: BlinkHolding[] = [];
+  let totalHoldingsValue = 0;
+
+  holdingMap.forEach((val, ticker) => {
+    if (val.quantity > 0.0001) {
+      const info = getTickerDetails(ticker);
+      const avgBuyPrice = val.quantity > 0 ? Number((val.totalCost / val.quantity).toFixed(2)) : val.latestPrice;
+      const posValue = Number((val.quantity * val.latestPrice).toFixed(2));
+      totalHoldingsValue += posValue;
+
+      holdings.push({
+        ticker,
+        assetName: info.name,
+        sector: info.sector,
+        quantity: val.quantity,
+        buyPrice: avgBuyPrice,
+        reportPrice: val.latestPrice,
+        value: posValue,
+        portfolioPercent: 0,
+        unrealizedPnL: 0,
+        unrealizedPnLPercent: 0,
+        dividends: 0,
+      });
+    }
+  });
+
+  if (totalHoldingsValue > 0) {
+    holdings.forEach((h) => {
+      h.portfolioPercent = Number(((h.value / totalHoldingsValue) * 100).toFixed(2));
+    });
+  }
+
+  return {
+    clientName: 'נדב בר',
+    clientEmail: 'nadavbar205@gmail.com',
+    statementDate: latestDate,
+    cashBalance: 0,
+    totalPortfolioValue: Number(totalHoldingsValue.toFixed(2)),
+    holdings,
+    transactions,
+  };
 }

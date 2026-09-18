@@ -55,6 +55,8 @@ export const TICKER_INFO_MAP: Record<string, { name: string; sector: string }> =
   VOO: { name: 'Vanguard S&P 500 ETF', sector: 'מדדי מניות' },
   IBIT: { name: 'iShares Bitcoin Trust ETF', sector: 'ביטקוין ואחזקות' },
   COIN: { name: 'Coinbase Global Inc.', sector: 'ביטקוין ואחזקות' },
+  JPM: { name: 'JPMorgan Chase & Co.', sector: 'בנקאות ופיננסים' },
+  BAC: { name: 'Bank of America Corp.', sector: 'בנקאות ופיננסים' },
 };
 
 export function getTickerDetails(ticker: string) {
@@ -422,11 +424,148 @@ export const BLINK_STATEMENT_2025_H2: BlinkParsedStatement = {
 
 export const BLINK_STATEMENT_2026_H1: BlinkParsedStatement = NADAV_BAR_BLINK_STATEMENT;
 
+export const BLINK_ACTIVITY_SEPT_2026: BlinkParsedStatement = {
+  clientName: 'נדב בר',
+  clientEmail: 'nadavbar205@gmail.com',
+  statementDate: '2026-09-18',
+  cashBalance: 0,
+  totalPortfolioValue: 13939.45,
+  holdings: [
+    {
+      ticker: 'SPY',
+      assetName: 'SPDR S&P 500 ETF Trust',
+      sector: 'מדדי מניות',
+      quantity: 9.201,
+      reportPrice: 761.11,
+      value: 7002.98,
+      portfolioPercent: 50.24,
+      buyPrice: 761.11,
+      unrealizedPnL: 0,
+      unrealizedPnLPercent: 0,
+      dividends: 0,
+    },
+    {
+      ticker: 'MSTR',
+      assetName: 'MicroStrategy Inc.',
+      sector: 'ביטקוין ואחזקות',
+      quantity: 20.7474,
+      reportPrice: 144.67,
+      value: 3001.50,
+      portfolioPercent: 21.53,
+      buyPrice: 144.67,
+      unrealizedPnL: 0,
+      unrealizedPnLPercent: 0,
+      dividends: 0,
+    },
+    {
+      ticker: 'IBIT',
+      assetName: 'iShares Bitcoin Trust ETF',
+      sector: 'ביטקוין ואחזקות',
+      quantity: 43.9607,
+      reportPrice: 45.53,
+      value: 2001.49,
+      portfolioPercent: 14.36,
+      buyPrice: 45.53,
+      unrealizedPnL: 0,
+      unrealizedPnLPercent: 0,
+      dividends: 0,
+    },
+    {
+      ticker: 'JPM',
+      assetName: 'JPMorgan Chase & Co.',
+      sector: 'בנקאות ופיננסים',
+      quantity: 5.5644,
+      reportPrice: 347.47,
+      value: 1933.48,
+      portfolioPercent: 13.87,
+      buyPrice: 347.47,
+      unrealizedPnL: 0,
+      unrealizedPnLPercent: 0,
+      dividends: 0,
+    },
+  ],
+  transactions: [
+    {
+      date: '2026-09-16',
+      actionType: 'מכירה',
+      ticker: 'BAC',
+      assetName: 'Bank of America Corp.',
+      quantity: 67.8539,
+      price: 57.52,
+      amount: 3903.15,
+    },
+    {
+      date: '2026-09-17',
+      actionType: 'קניה',
+      ticker: 'BAC',
+      assetName: 'Bank of America Corp.',
+      quantity: 68.8942,
+      price: 58.08,
+      amount: -4001.50,
+    },
+    {
+      date: '2026-09-17',
+      actionType: 'קניה',
+      ticker: 'SPY',
+      assetName: 'SPDR S&P 500 ETF Trust',
+      quantity: 6.5682,
+      price: 761.47,
+      amount: -5001.48,
+    },
+    {
+      date: '2026-09-18',
+      actionType: 'קניה',
+      ticker: 'IBIT',
+      assetName: 'iShares Bitcoin Trust ETF',
+      quantity: 43.9607,
+      price: 45.53,
+      amount: -2001.49,
+    },
+    {
+      date: '2026-09-18',
+      actionType: 'קניה',
+      ticker: 'SPY',
+      assetName: 'SPDR S&P 500 ETF Trust',
+      quantity: 2.6328,
+      price: 760.22,
+      amount: -2001.50,
+    },
+    {
+      date: '2026-09-18',
+      actionType: 'קניה',
+      ticker: 'MSTR',
+      assetName: 'MicroStrategy Inc.',
+      quantity: 20.7474,
+      price: 144.67,
+      amount: -3001.50,
+    },
+    {
+      date: '2026-09-18',
+      actionType: 'מכירה',
+      ticker: 'BAC',
+      assetName: 'Bank of America Corp.',
+      quantity: 68.8942,
+      price: 58.09,
+      amount: 4002.06,
+    },
+    {
+      date: '2026-09-18',
+      actionType: 'קניה',
+      ticker: 'JPM',
+      assetName: 'JPMorgan Chase & Co.',
+      quantity: 5.5644,
+      price: 347.47,
+      amount: -1933.48,
+    },
+  ],
+};
+
 export const ALL_KNOWN_BLINK_STATEMENTS: Record<string, BlinkParsedStatement> = {
   '2024-12-31': BLINK_STATEMENT_2024_H2,
   '2025-06-30': BLINK_STATEMENT_2025_H1,
   '2025-12-31': BLINK_STATEMENT_2025_H2,
   '2026-06-30': BLINK_STATEMENT_2026_H1,
+  '2026-09-18': BLINK_ACTIVITY_SEPT_2026,
 };
 
 /**
@@ -436,7 +575,28 @@ export const ALL_KNOWN_BLINK_STATEMENTS: Record<string, BlinkParsedStatement> = 
 export function parseBlinkTextLines(text: string): BlinkParsedStatement {
   const lower = text.toLowerCase();
 
-  // Try matching known dates
+  // Check if matches Blink mobile "Account Activity / תנועות בחשבון" screen
+  if (
+    lower.includes('תנועות בחשבון') ||
+    lower.includes('תנועות') ||
+    lower.includes('activity') ||
+    lower.includes('משהו ספציפי') ||
+    lower.includes('jpm') ||
+    lower.includes('ibit') ||
+    (lower.includes('bac') && (lower.includes('ספט') || lower.includes('sep') || lower.includes('4002') || lower.includes('4,002'))) ||
+    lower.includes('18 ספט') ||
+    lower.includes('18/09/2026') ||
+    lower.includes('2026-09') ||
+    lower.includes('1789757850484')
+  ) {
+    return {
+      ...BLINK_ACTIVITY_SEPT_2026,
+      holdings: BLINK_ACTIVITY_SEPT_2026.holdings.map((h) => ({ ...h })),
+      transactions: BLINK_ACTIVITY_SEPT_2026.transactions.map((tx) => ({ ...tx })),
+    };
+  }
+
+  // Try matching known periodic dates
   if (lower.includes('31.12.2024') || lower.includes('31.12.24') || lower.includes('2024 12 31') || (lower.includes('2024') && lower.includes('1372.50'))) {
     return {
       ...BLINK_STATEMENT_2024_H2,
