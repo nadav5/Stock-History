@@ -1,0 +1,36 @@
+{
+  "name": "tradetracker-backend",
+  "version": "1.0.0",
+  "description": "Backend API and Stop-Loss Engine for TradeTracker Investment Journal",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "csv-parser": "^3.0.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mongoose": "^8.4.0",
+    "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
+    "pdf-parse": "^2.4.5",
+    "sharp": "^0.35.4",
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5",
+    "yahoo-finance2": "^2.11.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.11",
+    "@types/node": "^20.12.12",
+    "@types/node-cron": "^3.0.11",
+    "@types/pdf-parse": "^1.1.5",
+    "@types/sharp": "^0.31.1",
+    "tsx": "^4.11.0",
+    "typescript": "^5.4.5"
+  }
+}
