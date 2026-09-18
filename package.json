@@ -4,10 +4,9 @@
   "description": "TradeTracker - A Full-Stack Investment Journal & Stop-Loss Engine",
   "private": true,
   "scripts": {
+    "build": "npm --prefix backend install && npm --prefix backend run build && npm --prefix frontend install && npm --prefix frontend run build",
+    "start": "node backend/dist/server.js",
     "dev:backend": "npm --prefix backend run dev",
-    "dev:frontend": "npm --prefix frontend run dev",
-    "build": "npm --prefix backend run build && npm --prefix frontend run build",
-    "start:backend": "npm --prefix backend start",
-    "start:frontend": "npm --prefix frontend run preview"
+    "dev:frontend": "npm --prefix frontend run dev"
   }
 }
