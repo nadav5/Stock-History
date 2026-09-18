@@ -70,7 +70,7 @@ async function startServer() {
     await mongoose.connect(MONGODB_URI, {
       dbName: 'tradetracker',
       serverSelectionTimeoutMS: 15000,
-    });
+    } as any);
     console.log('[Database] MongoDB connected successfully to tradetracker database.');
 
     // Initialize Automatic Periodic Market Price Refresh (Every 60 seconds)
