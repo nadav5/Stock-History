@@ -65,9 +65,13 @@ process.on('uncaughtException', (err) => {
 // Connect to MongoDB & Start Server
 async function startServer() {
   try {
-    console.log(`[Database] Connecting to MongoDB at ${MONGODB_URI}...`);
-    await mongoose.connect(MONGODB_URI);
-    console.log('[Database] MongoDB connected successfully.');
+    const maskedUri = MONGODB_URI.replace(/:([^:@]+)@/, ':****@');
+    console.log(`[Database] Connecting to MongoDB at ${maskedUri}...`);
+    await mongoose.connect(MONGODB_URI, {
+      dbName: 'tradetracker',
+      serverSelectionTimeoutMS: 15000,
+    });
+    console.log('[Database] MongoDB connected successfully to tradetracker database.');
 
     // Initialize Automatic Periodic Market Price Refresh (Every 60 seconds)
     const { refreshActiveTradesPrices } = require('./services/marketData');
